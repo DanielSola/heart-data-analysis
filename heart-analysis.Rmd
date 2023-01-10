@@ -1,6 +1,8 @@
 ---
-title: "Práctica 2: Tipologia y ciclo de vida de los datos"
-output: html_notebook
+title: 'Práctica 2: Tipologia y ciclo de vida de los datos'
+output:
+  pdf_document: default
+  html_notebook: default
 ---
 
 ## Descripción del dataset
@@ -59,11 +61,21 @@ Estos análisis adquieren una gran relevancia en el ámbito médico. Por ejemplo
 
 ## Limpieza de los datos
 
-Previamente a la limpieza de los datos, cargamos el fichero en el que se encuentran. Dado que no tiene cabeceras, se las añadiremos también.
+Antes de nada, configuraremos el directorio de trabajo para que sea la carpeta desde dónde se ejecuta este notebook.
+
+```{r}
+#Set del directorio de trabajo
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+getwd()
+
+```
+
+Previamente a la limpieza de los datos, cargamos el fichero en el que se encuentran. Dado que no tiene cabeceras, se las añadiremos también
+
 
 ```{r}
 # Carga de datos
-data <- read.csv("../data/processed.cleveland.data")
+data <- read.csv("./data/processed.cleveland.data")
 
 # Columna de nombres de variables
 
