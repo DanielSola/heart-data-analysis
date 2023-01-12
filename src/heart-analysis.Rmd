@@ -1,6 +1,9 @@
 ---
-title: "Práctica 2: Tipologia y ciclo de vida de los datos"
-output: html_notebook
+title: 'Práctica 2: Tipologia y ciclo de vida de los datos'
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
 ---
 
 ## Descripción del dataset
@@ -59,11 +62,21 @@ Estos análisis adquieren una gran relevancia en el ámbito médico. Por ejemplo
 
 ## Limpieza de los datos
 
-Previamente a la limpieza de los datos, cargamos el fichero en el que se encuentran. Dado que no tiene cabeceras, se las añadiremos también.
+Antes de nada, configuraremos el directorio de trabajo para que sea la carpeta desde dónde se ejecuta este notebook.
+
+```{r}
+#Set del directorio de trabajo
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+getwd()
+
+```
+
+Previamente a la limpieza de los datos, cargamos el fichero en el que se encuentran. Dado que no tiene cabeceras, se las añadiremos también
+
 
 ```{r}
 # Carga de datos
-data <- read.csv("./Downloads/processed.cleveland.data")
+data <- read.csv("../data/processed.cleveland.data")
 
 # Columna de nombres de variables
 
@@ -129,16 +142,11 @@ Para encontrar los valores extremos, los representaremos graficamente mediante l
 
 
 ```{r}
-
+par(mfrow = c(2, 2)) 
 blood_pressure_outliers <- boxplot(data$Resting_Blood_Pressure, main = 'Resting Blood pressure (mmHg)' )
 serum_cholesterol_outliers <- boxplot(data$Serum_Cholesterol, main = 'Serum Cholesterol (mmg/dl)' )
 heart_rate_outliers <- boxplot(data$Max_Heart_Rate_Achieved, main = 'Max_Heart_Rate_Achieved (bpm)' )
-st_depression_outliers <- boxplot(data$ST_Depression_Exercise, main = 'ST_Depression_Exercise' )
-
-blood_pressure_outliers$stats
-serum_cholesterol_outliers$stats
-heart_rate_outliers$stats
-st_depression_outliers$stats
+st_depression_outliers <- boxplot(data$ST_Depression_Exercise, main = 'ST_Depression_Exercise (mm)' )
 ```
 Encontramos diversos outliers en el conjunto de datos. Sin embargo, dado que mis conocimientos en cardiología són nulos, no puedo afirmar si se trata de valores correctos, erróneos o incompatibles con la vida. De esta manera, voy a optar por no eliminar los valores extremos. 
 
@@ -146,13 +154,23 @@ Encontramos diversos outliers en el conjunto de datos. Sin embargo, dado que mis
 
 ### Selección de datos
 
-Será interesante seleccionar los datos por sexo
+Será interesante seleccionar los datos por sexo. De esta manera, más adelante, podremos comparar algunas variables en función de este parámetro. Lo realizamos mediante la función subset de R. Así mismo, crearemos la variable Sex_Label a partir del campo Sex, dónde 0 y 1 corresponden a 'FEMALE' y 'MALE' respectivamente. Esto nos permitira una mejor visualización de los datos 
 
 ```{r}
-female_data <- subset(data, Sex == 0)
-male_data <- subset(data, Sex == 1)
+data$Sex_Label<-ifelse(data$Sex>0,'MALE','FEMALE')
+female_data <- subset(data, Sex_Label == 'FEMALE')
+male_data <- subset(data, Sex_Label == 'MALE')
 
 ```
+
+Podemos ver como se distribuye la gravedad de la enfermedad cardíaca por sexo. Observamos a simple vista, que en los niveles de mayor gravedad, la mayoría de afectados son hombres.
+
+```{r}
+gravity_by_sex <- table(data$Sex_Label, data$Diagnosis_Heart_Disease)
+barplot(gravity_by_sex, legend=rownames(gravity_by_sex), xlab='Heart disease diagnosis gravity level', main='Heart diseases gravity by sex')
+```
+
+
 ### Comprobación de la normalidad y homogeneidad de la varianza
 
 Comprobaremos estas condiciones para las siguientes variables numéricas:
@@ -168,6 +186,8 @@ Con el objetivo de verificar la suposición de normalidad, emplearemos el test d
 Representamos gráficamente las variables seleccionadas
 
 ```{r}
+par(mfrow = c(2, 3)) 
+
 hist(data$Resting_Blood_Pressure, main='Resting blood pressure (mmHg)', xlab ='mmHg')
 hist(data$Serum_Cholesterol, main='Serum Cholesterol (mg/dl)', xlab ='mg/dl')
 hist(data$Max_Heart_Rate_Achieved, main='Max Heart rate achieved (bpm)', xlab ='bpm')
@@ -208,10 +228,13 @@ Sin embargo, las variables Serum_Cholesterol, Max_Heart_Rate_Achieved y ST_Depre
 Procederemos a realizar un análisis de correlación entre las distintas variables para determinar cuáles de ellas ejercen una mayor influencia sobre la gravedad de la enfermedad cardiáca. Dado que los datos no siguen una distribución normal, nos fijaremos en el coeficiente de correlación de Spearman
 
 ```{r}
-numeric_data <- data[, c('Resting_Blood_Pressure', 'Age', 'Sex', 'Serum_Cholesterol', 'Max_Heart_Rate_Achieved', 'ST_Depression_Exercise', 'Diagnosis_Heart_Disease')]
+numeric_data <- data[, c('Resting_Blood_Pressure', 'Age', 'Serum_Cholesterol', 'Max_Heart_Rate_Achieved', 'ST_Depression_Exercise', 'Diagnosis_Heart_Disease')]
 
 res <- cor(numeric_data, method = 'spearman')
 round(res, 2)
+
+library(corrplot)
+corrplot(res, type="upper", order="hclust")
 
 ```
 
@@ -223,6 +246,7 @@ Realizaremos un modelo de regresión lineal para predecir la gravedad de la enfe
 
 Primeramente, crearemos una nueva variable llamada 'target' a partir de Diagnosis_Heart_disease. De esta forma, si Diagnosis_Heart_disease > 0, el paciente presenta enfermedad cardíaca y 'target' = 1.
 ```{r}
+#Variable dicotómica target 
 data$target<-ifelse(data$Diagnosis_Heart_Disease>0,TRUE,FALSE)
 ```
 
@@ -231,7 +255,7 @@ Seeguidamente dividiremos el conjunto de datos en subconjuntos de entreno y test
 
 ```{r}
 library(caTools)
-
+set.seed(123)
 split <- sample.split(data$Diagnosis_Heart_Disease, SplitRatio = 0.8)
 train <- subset(data, split == TRUE)
 test <- subset(data, split == FALSE)
@@ -253,14 +277,14 @@ predicciones = predict(model, type='response')
 table(train$target, predicciones>0.5)
 
 ```
-Calculamos la precisión del modelo. Obtenemos un valor de 0.66, no muy alto, pero estadísticamente significante. Seguramente podríamos mejorar el modelo para obtener un modelo mejor, buscando qué variables tienen mayor peso y descartando aquellas que no lo tengan.
+Calculamos la precisión del modelo. Obtenemos un valor de 0.68, no muy alto, pero estadísticamente significante. Seguramente podríamos mejorar el modelo para obtener un modelo mejor, buscando qué variables tienen mayor peso y descartando aquellas que no lo tengan.
 
 ```{r}
-(90+66)/236
+(90+71)/236
 ```
 
 
-#### Validación cruzada
+### Validación cruzada
 
 En la validación cruzada los datos originales se dividen en un número de subconjuntos mutuamente exclusivos de tamaños similares. De esta forma, el entrenamiento y evaluación del modelo se realizan tantas veces como subconjuntos hayamos escogido, a partir de todas las combinaciones posibles entre estos. 
 
@@ -313,14 +337,14 @@ Con este nuevo modelo creado a partir de validación cruzada, realizamos nuevas 
 kfoldPredictions <- predict(kfoldModel, newdata=test)
 confusionMatrix(data=kfoldPredictions, test$target)
 ```
-Observamos que obtenemos un resultado similar al anterior, con una precisión del 0.61
+Observamos que obtenemos un resultado similar al anterior, con una precisión del 0.61. La matrix de confusión nos permite obtener también muchas otras métricas, como la sensibilidad y la especificidad. No obtenemos un modelo muy bueno, pero es mejor que un clasificador aleatorio. Podríamos mejorar el modelo de diversas formas. Por ejemplo, podríamos incluir mas variables, o aumentar el tamaño del dataset.
 
 ### Inferencia
 
 Comprobaremos si existen diferencias significativas entre la gravedad de la enfermedad cardíaca (Diagnosis_Heart_Disease) por sexo. Para ello emplearemos el test de Wilcoxon, debido que los datos no cumplen las condiciones de normalidad y homocedasticidad
 
-H0 = Los hombres presentan mayor gravedad de enfermedad cardíaca --> Hipótesis nula
-H1 = No existen diferencias significativas en la gravedad de la enfermedad cardíaca entre hombres y mujeres --> Hipótesis alternativa
+* H~0~ = Los hombres presentan mayor gravedad de enfermedad cardíaca
+* H~1~ = No existen diferencias significativas en la gravedad de la enfermedad cardíaca entre hombres y mujeres
 
 ```{r}
 wilcox.test(Diagnosis_Heart_Disease ~ Sex, data=data)
@@ -330,9 +354,7 @@ En este caso sí se observan diferencias significativas en la gravedad de la enf
 Visualizamos los histogramas de Diagnosis_heart_disease para hombres y mujeres y vemos que los hombres presentan un diagnóstico más grave de enfermedad cardíaca, como nos confirma el test de Wilcoxon realizado previamente. 
 ```{r}
 library(lattice)
-
-histogram(male_data$Diagnosis_Heart_Disease, main="Histograma de Diagnosis_Heart_Disease (hombres)", breaks=5)
-histogram(female_data$Diagnosis_Heart_Disease, main="Histograma de Diagnosis_Heart_Disease (mujeres)", breaks=5)
+histogram(~Diagnosis_Heart_Disease|Sex_Label, data=data, main="Histograma de Diagnosis Heart Disease", breaks=5, xlab = 'Severity')
 
 ```
 
